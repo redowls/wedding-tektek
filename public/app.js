@@ -3,9 +3,8 @@
 
   const CAP = window.TABLE_CAPACITY || 12;
   const TABLES = window.TABLES || [];
-  const POLL_MS = 3000;           // quick live sync
-  const FULL_REFRESH_MS = 30000;  // guaranteed full re-sync, even if a quick poll stalled
-  const FETCH_TIMEOUT_MS = 8000;
+  const POLL_MS = 3000;
+  const FETCH_TIMEOUT_MS = 8000;  // a hung request must not stop the 3s loop
   const ZOOMS = [1, 2, 3];
   const $ = (id) => document.getElementById(id);
 
@@ -22,11 +21,9 @@
 
   // ---------- helpers ----------
   function colorClass(n) {
-    if (n <= 0) return "c0";
-    if (n < 6) return "c1";
-    if (n === 6) return "c6";
-    if (n < CAP) return "c7";
-    return "c12";
+    // 0 | 1-2 | 3-4 | 5-6 | 7-8 | 9-10 | 11-12
+    if (n <= 0) return "b0";
+    return "b" + Math.min(6, Math.ceil(n / 2));
   }
   const countOf = (id) => (data[id] ? data[id].n : 0);
 
@@ -60,7 +57,7 @@
   for (const t of TABLES) {
     const b = document.createElement("button");
     b.type = "button";
-    b.className = "tbl c0";
+    b.className = "tbl b0";
     b.style.left = t.x + "%";
     b.style.top = t.y + "%";
     b.dataset.id = t.id;
@@ -105,21 +102,7 @@
     el.classList.toggle("off", !ok);
   }
 
-  let lastSync = 0;
-  let inFlight = null;
-  function showSync() {
-    const el = $("syncLabel");
-    if (!lastSync) return (el.textContent = "Syncing…");
-    const s = Math.round((Date.now() - lastSync) / 1000);
-    el.textContent = s < 5 ? "Synced just now" : `Synced ${s < 60 ? s + "s" : Math.round(s / 60) + " min"} ago`;
-  }
-
-  function refresh() {
-    if (!inFlight) inFlight = doRefresh().finally(() => (inFlight = null));
-    return inFlight;
-  }
-
-  async function doRefresh() {
+  async function refresh() {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
     try {
@@ -136,13 +119,11 @@
       data = next;
       render(first ? null : changed);
       if (open && changed.has(open.id)) showNow();
-      lastSync = Date.now();
       setLive(true);
     } catch {
       setLive(false);
     } finally {
       clearTimeout(timer);
-      showSync();
     }
   }
 
@@ -156,13 +137,6 @@
   }
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) refresh();
-  });
-  setInterval(() => refresh(), FULL_REFRESH_MS);
-  setInterval(showSync, 1000);
-  $("syncBtn").addEventListener("click", async () => {
-    $("syncBtn").classList.add("spin");
-    await refresh();
-    $("syncBtn").classList.remove("spin");
   });
 
   // ---------- sheet ----------
