@@ -14,7 +14,7 @@ Data is stored in `data/tables.json` (or `DATA_FILE`).
 ## Deploy to Vercel
 
 1. Push this repo to GitHub and import it in Vercel (Framework preset: **Other**, no build command).
-2. In the Vercel project: **Storage → Marketplace → Upstash for Redis → Create & connect**.
+2. In the Vercel project: **Storage → Marketplace → Upstash for Redis → Create & connect** — pick region **Singapore (ap-southeast-1)** to sit next to the API (vercel.json pins functions to `sin1` Singapore, closest to Indonesia).
    This adds `KV_REST_API_URL` / `KV_REST_API_TOKEN` env vars; the API uses Redis automatically when they exist.
    (Vercel functions have no persistent disk, so the JSON-file store does NOT work there.)
 3. Optional: set `ADMIN_PIN` to enable the "Reset all" button.
