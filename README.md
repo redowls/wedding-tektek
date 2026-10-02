@@ -3,7 +3,7 @@
 Mobile web app for ushers: tap a table on the ballroom plan, set how many guests are seated (0–12).
 All ushers see the same live map (auto-refresh every 3 s).
 
-Legend: 0 white · 1–5 light yellow · 6 yellow · 7–11 light red · 12 (full) red.
+Legend: 0 white · 1–2 pale yellow · 3–4 light yellow · 5–6 yellow · 7–8 orange · 9–10 light red · 11 red · 12 (full) dark red.
 
 ## Run locally / on a VPS
 

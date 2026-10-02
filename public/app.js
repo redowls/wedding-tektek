@@ -21,8 +21,9 @@
 
   // ---------- helpers ----------
   function colorClass(n) {
-    // 0 | 1-2 | 3-4 | 5-6 | 7-8 | 9-10 | 11-12
+    // 0 | 1-2 | 3-4 | 5-6 | 7-8 | 9-10 | 11 | 12 (full)
     if (n <= 0) return "b0";
+    if (n >= CAP) return "b7";
     return "b" + Math.min(6, Math.ceil(n / 2));
   }
   const countOf = (id) => (data[id] ? data[id].n : 0);
