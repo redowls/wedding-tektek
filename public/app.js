@@ -3,7 +3,10 @@
 
   const CAP = window.TABLE_CAPACITY || 12;
   const TABLES = window.TABLES || [];
-  const POLL_MS = 3000;
+  const POLL_MS = 3000;           // quick live sync
+  const FULL_REFRESH_MS = 30000;  // guaranteed full re-sync, even if a quick poll stalled
+  const FETCH_TIMEOUT_MS = 8000;
+  const ZOOMS = [1, 2, 3];
   const $ = (id) => document.getElementById(id);
 
   let data = {};           // { [id]: { n, t, by } }
@@ -102,9 +105,25 @@
     el.classList.toggle("off", !ok);
   }
 
-  async function refresh() {
+  let lastSync = 0;
+  let inFlight = null;
+  function showSync() {
+    const el = $("syncLabel");
+    if (!lastSync) return (el.textContent = "Syncing…");
+    const s = Math.round((Date.now() - lastSync) / 1000);
+    el.textContent = s < 5 ? "Synced just now" : `Synced ${s < 60 ? s + "s" : Math.round(s / 60) + " min"} ago`;
+  }
+
+  function refresh() {
+    if (!inFlight) inFlight = doRefresh().finally(() => (inFlight = null));
+    return inFlight;
+  }
+
+  async function doRefresh() {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
     try {
-      const res = await fetch("api/tables", { cache: "no-store" });
+      const res = await fetch("api/tables", { cache: "no-store", signal: ctrl.signal });
       if (!res.ok) throw new Error(res.status);
       const body = await res.json();
       const next = body.tables || {};
@@ -117,9 +136,13 @@
       data = next;
       render(first ? null : changed);
       if (open && changed.has(open.id)) showNow();
+      lastSync = Date.now();
       setLive(true);
     } catch {
       setLive(false);
+    } finally {
+      clearTimeout(timer);
+      showSync();
     }
   }
 
@@ -133,6 +156,13 @@
   }
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) refresh();
+  });
+  setInterval(() => refresh(), FULL_REFRESH_MS);
+  setInterval(showSync, 1000);
+  $("syncBtn").addEventListener("click", async () => {
+    $("syncBtn").classList.add("spin");
+    await refresh();
+    $("syncBtn").classList.remove("spin");
   });
 
   // ---------- sheet ----------
@@ -333,7 +363,7 @@
     const cy = viewport.scrollTop + viewport.clientHeight / 2;
     const oldW = map.offsetWidth;
     map.style.width = z * 100 + "%";
-    map.classList.toggle("detail", z > 1);
+    map.classList.toggle("detail", map.offsetWidth * 0.0374 >= 36);
     for (const b of document.querySelectorAll("[data-zoom]")) b.classList.toggle("on", Number(b.dataset.zoom) === z);
     store.set("zoom", String(z));
     if (keepCenter && oldW) {
@@ -362,7 +392,9 @@
 
   // ---------- start ----------
   showName();
-  setZoom(Number(store.get("zoom", "1")) || 1);
+  const savedZoom = Number(store.get("zoom", ""));
+  setZoom(ZOOMS.includes(savedZoom) ? savedZoom : window.innerWidth < 700 ? 2 : 1);
+  window.addEventListener("resize", () => map.classList.toggle("detail", map.offsetWidth * 0.0374 >= 36));
   render();
   refresh().then(schedule);
   setInterval(() => { if (open) showNow(); }, 30000);

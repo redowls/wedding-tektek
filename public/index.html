@@ -13,6 +13,7 @@
   <header class="top">
     <div class="row">
       <h1>Wedding Seating</h1>
+      <div class="sync"><span id="syncLabel">Syncing…</span><button id="syncBtn" type="button" aria-label="Refresh now" title="Refresh now">↻</button></div>
       <span id="live" class="live" title="Connection">● Live</span>
     </div>
     <div class="stats" id="stats">
@@ -28,9 +29,9 @@
         <button type="submit">Go</button>
       </form>
       <div class="zoom" role="group" aria-label="Zoom">
-        <button type="button" data-zoom="1">1×</button>
-        <button type="button" data-zoom="1.6">1.6×</button>
-        <button type="button" data-zoom="2.3">2.3×</button>
+        <button type="button" data-zoom="1">Fit</button>
+        <button type="button" data-zoom="2">2×</button>
+        <button type="button" data-zoom="3">3×</button>
       </div>
     </div>
     <ul class="legend">
@@ -49,7 +50,7 @@
   </main>
 
   <footer class="foot">
-    <span>Tap a table to update · auto-refresh every 3s</span>
+    <span>Live sync 3s · full refresh 30s</span>
     <button id="resetBtn" type="button" class="linkish">Reset all</button>
   </footer>
 

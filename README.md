@@ -29,4 +29,4 @@ Data is stored in `data/tables.json` (or `DATA_FILE`).
 ## Table numbering
 
 `public/tables.js` holds the 134 table positions (auto-detected from the venue plan), numbered row by row
-top→bottom, left→right as the plan is drawn. Edit the `id`s there to match the official numbering.
+top (stage side) → bottom, left → right, with the plan rotated 90° left. Edit the `id`s there to match the official numbering.
