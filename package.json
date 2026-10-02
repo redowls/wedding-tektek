@@ -1,0 +1,10 @@
+{
+  "name": "wedding-seating",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Live table occupancy map for wedding ushers",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": { "node": ">=18" }
+}

@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#3d2f2a">
+  <title>Wedding Seating</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ccircle cx=%2250%22 cy=%2250%22 r=%2242%22 fill=%22%23ffd21f%22 stroke=%22%23444%22 stroke-width=%228%22/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="row">
+      <h1>Wedding Seating</h1>
+      <span id="live" class="live" title="Connection">● Live</span>
+    </div>
+    <div class="stats" id="stats">
+      <div><b id="sGuests">0</b><span>seated / <i id="sCap">0</i></span></div>
+      <div><b id="sFull">0</b><span>full</span></div>
+      <div><b id="sPartial">0</b><span>partly</span></div>
+      <div><b id="sEmpty">0</b><span>empty</span></div>
+    </div>
+    <div class="row tools">
+      <button id="nameBtn" class="chip" type="button">👤 <span id="nameLabel">Set your name</span></button>
+      <form id="findForm" class="find" autocomplete="off">
+        <input id="findInput" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="Table #" aria-label="Find table number">
+        <button type="submit">Go</button>
+      </form>
+      <div class="zoom" role="group" aria-label="Zoom">
+        <button type="button" data-zoom="1">1×</button>
+        <button type="button" data-zoom="1.6">1.6×</button>
+        <button type="button" data-zoom="2.3">2.3×</button>
+      </div>
+    </div>
+    <ul class="legend">
+      <li><i class="c0"></i>0</li>
+      <li><i class="c1"></i>1–5</li>
+      <li><i class="c6"></i>6</li>
+      <li><i class="c7"></i>7–11</li>
+      <li><i class="c12"></i>12 full</li>
+    </ul>
+  </header>
+
+  <main class="viewport" id="viewport">
+    <div class="map" id="map">
+      <img src="floorplan.jpg" alt="Ballroom floor plan" draggable="false">
+    </div>
+  </main>
+
+  <footer class="foot">
+    <span>Tap a table to update · auto-refresh every 3s</span>
+    <button id="resetBtn" type="button" class="linkish">Reset all</button>
+  </footer>
+
+  <!-- Table update sheet -->
+  <div class="backdrop" id="sheetBackdrop" hidden>
+    <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+      <header class="sheet-head">
+        <h2 id="sheetTitle">Table</h2>
+        <span class="cap">max 12</span>
+      </header>
+      <div class="now">
+        <div class="now-count"><span>Now</span><b id="nowCount">0</b><span>persons</span></div>
+        <div class="now-meta" id="nowMeta">Not updated yet</div>
+      </div>
+      <div class="warn" id="conflict" hidden></div>
+      <div class="grid" id="grid"></div>
+      <form class="stepper" id="stepForm" autocomplete="off">
+        <button type="button" class="step" id="minus" aria-label="Minus one">−</button>
+        <input id="countInput" type="number" inputmode="numeric" pattern="[0-9]*" min="0" max="12" step="1" aria-label="Number of persons">
+        <button type="button" class="step" id="plus" aria-label="Plus one">+</button>
+      </form>
+      <div class="err" id="inputErr" hidden></div>
+      <div class="actions">
+        <button type="button" class="btn ghost" id="cancelBtn">Cancel</button>
+        <button type="button" class="btn primary" id="okBtn">OK</button>
+      </div>
+    </section>
+  </div>
+
+  <!-- Generic confirm / name dialog -->
+  <div class="backdrop top-layer" id="dlgBackdrop" hidden>
+    <section class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="dlgTitle">
+      <h3 id="dlgTitle"></h3>
+      <p id="dlgText"></p>
+      <input id="dlgInput" type="text" hidden>
+      <div class="actions">
+        <button type="button" class="btn ghost" id="dlgNo">No</button>
+        <button type="button" class="btn primary" id="dlgYes">Yes</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="toast" id="toast" hidden></div>
+
+  <script src="tables.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
