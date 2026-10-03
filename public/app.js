@@ -129,7 +129,11 @@
       const first = Object.keys(data).length === 0;
       data = next;
       render(first ? null : changed);
-      if (open && changed.has(open.id)) showNow();
+      if (open) {
+        if (changed.has(open.id)) showNow();
+        $("sheetTitle").textContent = `Table ${labelOf(open.id)}`;
+        showLabelNote();
+      }
       setLive(true);
     } catch {
       setLive(false);
@@ -247,7 +251,7 @@
   async function askCancel() {
     if (!open) return;
     const ok = await confirmDialog(
-      `Cancel Table ${open.id}?`,
+      `Cancel Table ${labelOf(open.id)}?`,
       "Your change will not be saved.",
       { yes: "Yes, cancel", no: "Keep editing" }
     );
@@ -288,7 +292,7 @@
       data[id] = body.rec;
       render(new Set([id]));
       closeSheet();
-      toast(`Table ${id} → ${n} ${n === 1 ? "person" : "persons"}`);
+      toast(`Table ${labelOf(id)} → ${n} ${n === 1 ? "person" : "persons"}`);
     } catch (err) {
       toast(`Not saved: ${err.message || "no connection"}. Try again.`, true);
     } finally {
