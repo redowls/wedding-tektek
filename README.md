@@ -3,15 +3,6 @@
 Mobile web app for ushers: tap a table on the ballroom plan, set how many guests are seated (0–12).
 All ushers see the same live map (auto-refresh every 3 s).
 
-**One update per table.** A table locks as soon as it is saved once, so two ushers can never
-overwrite each other's count — the write is atomic (`HSETNX` on Redis, single-threaded
-check-and-set on the file store), so of N simultaneous saves exactly one wins and the rest get
-HTTP 423. Changing a locked table needs the admin PIN (`ADMIN_PIN`); that enters admin mode for
-the session (kept in memory only, never stored on the phone) and records `edits` plus the
-previous value in `prev`. Tables not filled in yet are drawn with a dashed grey outline.
-
-**Set `ADMIN_PIN`** wherever this runs — without it a wrong number can never be corrected.
-
 Legend: 0 white · 1–2 pale yellow · 3–4 light yellow · 5–6 yellow · 7–8 orange · 9–10 light red · 11 red · 12 (full) dark red.
 
 ## Run locally / on a VPS
@@ -32,9 +23,7 @@ Data is stored in `data/tables.json` (or `DATA_FILE`).
 ## API
 
 - `GET /api/tables` → `{ tables: { "12": { n, t, by } } }`
-- `POST /api/tables` `{ id, n, by }` → first save only; **423** if the table is already filled
-- `POST /api/tables` `{ id, n, by, pin, expectT }` → admin change; 403 wrong PIN, 409 if another admin changed it meanwhile
-- `POST /api/tables` `{ action: "verify-pin", pin }` → checks the PIN before showing the editor
+- `POST /api/tables` `{ id, n, by, expectT }` → 409 if someone else updated that table after you opened it
 - `DELETE /api/tables` with header `x-admin-pin` → reset all (only if `ADMIN_PIN` is set)
 
 ## Table numbering

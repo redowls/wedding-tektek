@@ -23,7 +23,6 @@
     </div>
     <div class="row tools">
       <button id="nameBtn" class="chip" type="button">👤 <span id="nameLabel">Set your name</span></button>
-      <button id="adminChip" class="chip admin" type="button" hidden>🔓 Admin · tap to exit</button>
       <form id="findForm" class="find" autocomplete="off">
         <input id="findInput" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="Table #" aria-label="Find table number">
         <button type="submit">Go</button>
@@ -59,7 +58,7 @@
 
   <!-- Table update sheet -->
   <div class="backdrop" id="sheetBackdrop" hidden>
-    <section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
       <header class="sheet-head">
         <h2 id="sheetTitle">Table</h2>
         <span class="cap">max 12</span>
@@ -69,7 +68,6 @@
         <div class="now-meta" id="nowMeta">Not updated yet</div>
       </div>
       <div class="warn" id="conflict" hidden></div>
-      <div class="warn lock" id="lockNote" hidden></div>
       <div class="grid" id="grid"></div>
       <form class="stepper" id="stepForm" autocomplete="off">
         <button type="button" class="step" id="minus" aria-label="Minus one">−</button>
@@ -77,13 +75,9 @@
         <button type="button" class="step" id="plus" aria-label="Plus one">+</button>
       </form>
       <div class="err" id="inputErr" hidden></div>
-      <div class="actions" id="editActions">
+      <div class="actions">
         <button type="button" class="btn ghost" id="cancelBtn">Cancel</button>
         <button type="button" class="btn primary" id="okBtn">OK</button>
-      </div>
-      <div class="actions" id="lockedActions" hidden>
-        <button type="button" class="btn ghost" id="closeBtn">Close</button>
-        <button type="button" class="btn primary" id="unlockBtn">🔒 Change (admin)</button>
       </div>
     </section>
   </div>

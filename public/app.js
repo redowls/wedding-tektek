@@ -8,12 +8,10 @@
   const ZOOMS = [1, 2, 3];
   const $ = (id) => document.getElementById(id);
 
-  let data = {};           // { [id]: { n, t, by, edits } }
-  let open = null;         // { id, expectT, initial, locked }
+  let data = {};           // { [id]: { n, t, by } }
+  let open = null;         // { id, expectT, initial }
   let draft = 0;
   let saving = false;
-  let adminEnabled = true; // server tells us whether an ADMIN_PIN is configured
-  let adminPin = null;     // kept in memory only, never stored on the phone
 
   const store = {
     get(k, d) { try { return localStorage.getItem(k) ?? d; } catch { return d; } },
@@ -83,9 +81,9 @@
       else if (n >= CAP) full++;
       else partial++;
       const b = btns[t.id];
-      b.className = "tbl " + colorClass(n) + (data[t.id] ? "" : " new");
+      b.className = "tbl " + colorClass(n);
       b.lastChild.textContent = `${n}/${CAP}`;
-      b.setAttribute("aria-label", `Table ${t.id}: ${n} of ${CAP}${data[t.id] ? ", filled" : ", not filled yet"}`);
+      b.setAttribute("aria-label", `Table ${t.id}: ${n} of ${CAP}`);
       if (changed && changed.has(t.id)) {
         void b.offsetWidth;
         b.classList.add("flash");
@@ -112,7 +110,6 @@
       const res = await fetch("api/tables", { cache: "no-store", signal: ctrl.signal });
       if (!res.ok) throw new Error(res.status);
       const body = await res.json();
-      adminEnabled = body.adminEnabled !== false;
       const next = body.tables || {};
       const changed = new Set();
       for (const t of TABLES) {
@@ -175,32 +172,6 @@
       : "Not updated yet";
   }
 
-  // A table locks the moment it is saved once. Only admin mode re-opens it.
-  function applyLockState() {
-    const rec = data[open.id];
-    const locked = Boolean(rec) && !adminPin;
-    open.locked = locked;
-    $("sheet").classList.toggle("locked", locked);
-    $("editActions").hidden = locked;
-    $("lockedActions").hidden = !locked;
-    const note = $("lockNote");
-    if (locked) {
-      note.textContent = adminEnabled
-        ? `🔒 Already filled${rec.by ? " by " + rec.by : ""} — each table is updated once. Tap “Change (admin)” if this needs correcting.`
-        : `🔒 Already filled${rec.by ? " by " + rec.by : ""} — each table is updated once. No admin PIN is set on this site, so it cannot be changed here.`;
-      note.hidden = false;
-      $("unlockBtn").disabled = !adminEnabled;
-    } else {
-      note.hidden = true;
-      if (rec && adminPin) {
-        note.textContent = rec.by
-          ? `🔓 Admin mode — changing a table ${rec.by} already filled in.`
-          : "🔓 Admin mode — changing a table that is already filled in.";
-        note.hidden = false;
-      }
-    }
-  }
-
   function openSheet(id) {
     const rec = data[id];
     open = { id, expectT: rec ? rec.t : 0, initial: rec ? rec.n : 0 };
@@ -208,7 +179,6 @@
     $("conflict").hidden = true;
     showNow();
     setDraft(open.initial);
-    applyLockState();
     $("sheetBackdrop").hidden = false;
     $("okBtn").disabled = false;
   }
@@ -242,16 +212,12 @@
   $("plus").addEventListener("click", () => setDraft(Math.min(CAP, (parseInput() ?? draft) + 1)));
   $("okBtn").addEventListener("click", save);
   $("cancelBtn").addEventListener("click", askCancel);
-  $("closeBtn").addEventListener("click", closeSheet);
-  $("unlockBtn").addEventListener("click", unlock);
   $("sheetBackdrop").addEventListener("click", (e) => {
     if (e.target === e.currentTarget) askCancel();
   });
 
-  // Nothing is half-typed on a locked table, so closing it needs no confirmation.
   async function askCancel() {
     if (!open) return;
-    if (open.locked) return closeSheet();
     const ok = await confirmDialog(
       `Cancel Table ${open.id}?`,
       "Your change will not be saved.",
@@ -276,28 +242,9 @@
       const res = await fetch("api/tables", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id, n, by: usher, expectT: open.expectT, force: force === true,
-          ...(adminPin ? { pin: adminPin } : {}),
-        }),
+        body: JSON.stringify({ id, n, by: usher, expectT: open.expectT, force: force === true }),
       });
       const body = await res.json().catch(() => ({}));
-      if (res.status === 423) {
-        // Someone filled this table while the sheet was open.
-        if (body.rec) data[id] = body.rec;
-        render(new Set([id]));
-        showNow();
-        applyLockState();
-        toast(`Table ${id} was just filled in by someone else`, true);
-        return;
-      }
-      if (res.status === 403) {
-        adminPin = null;
-        updateAdminChip();
-        applyLockState();
-        toast("Admin PIN was rejected", true);
-        return;
-      }
       if (res.status === 409) {
         const rec = body.rec;
         if (rec) data[id] = rec; else delete data[id];
@@ -357,59 +304,6 @@
     else if (open) askCancel();
   });
 
-  // ---------- admin mode ----------
-  function updateAdminChip() {
-    $("adminChip").hidden = !adminPin;
-  }
-
-  async function askPin(title, text) {
-    const pin = await confirmDialog(title, text, {
-      input: true, inputType: "password", placeholder: "Admin PIN", yes: "Unlock", no: "Cancel",
-    });
-    if (pin === null || !pin.trim()) return null;
-    const res = await fetch("api/tables", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "verify-pin", pin: pin.trim() }),
-    }).catch(() => null);
-    if (!res) {
-      toast("No connection — try again", true);
-      return null;
-    }
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      toast(body.error || "Wrong admin PIN", true);
-      return null;
-    }
-    return pin.trim();
-  }
-
-  async function unlock() {
-    const rec = open && data[open.id];
-    const pin = await askPin(
-      "Admin PIN needed",
-      `Table ${open.id} was already filled in${rec && rec.by ? " by " + rec.by : ""}. Enter the admin PIN to change it.`
-    );
-    if (!pin) return;
-    adminPin = pin;
-    updateAdminChip();
-    open.expectT = rec ? rec.t : 0;
-    setDraft(rec ? rec.n : 0);
-    applyLockState();
-    toast("Admin mode on — you can change tables now");
-  }
-
-  $("adminChip").addEventListener("click", async () => {
-    const yes = await confirmDialog("Leave admin mode?", "Tables will be locked again after their first update.", {
-      yes: "Leave", no: "Stay",
-    });
-    if (!yes) return;
-    adminPin = null;
-    updateAdminChip();
-    if (open) applyLockState();
-    toast("Admin mode off");
-  });
-
   // ---------- usher name ----------
   function showName() {
     $("nameLabel").textContent = usher || "Set your name";
@@ -459,12 +353,10 @@
 
   // ---------- admin reset ----------
   $("resetBtn").addEventListener("click", async () => {
-    const sure = await confirmDialog("Reset all tables?", "Sets every table back to 0 and unlocks them all.", {
-      yes: "Yes, reset", no: "Cancel",
+    const pin = await confirmDialog("Reset all tables?", "Sets every table back to 0. Enter the admin PIN.", {
+      input: true, inputType: "password", placeholder: "Admin PIN", yes: "Reset", no: "Cancel",
     });
-    if (!sure) return;
-    const pin = adminPin || (await askPin("Admin PIN needed", "Enter the admin PIN to reset every table."));
-    if (!pin) return;
+    if (pin === null) return;
     const res = await fetch("api/tables", { method: "DELETE", headers: { "x-admin-pin": pin } });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) return toast(body.error || "Reset failed", true);
@@ -475,7 +367,6 @@
 
   // ---------- start ----------
   showName();
-  updateAdminChip();
   const savedZoom = Number(store.get("zoom", ""));
   setZoom(ZOOMS.includes(savedZoom) ? savedZoom : window.innerWidth < 700 ? 2 : 1);
   window.addEventListener("resize", () => map.classList.toggle("detail", map.offsetWidth * 0.0374 >= 36));
