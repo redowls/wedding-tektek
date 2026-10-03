@@ -8,10 +8,16 @@
   const ZOOMS = [1, 2, 3];
   const $ = (id) => document.getElementById(id);
 
-  let data = {};           // { [id]: { n, t, by } }
+  let data = {};           // counts  { [id]: { n, t, by } }
+  let labels = {};         // numbers { [id]: { label, t, by, edits } }
   let open = null;         // { id, expectT, initial }
   let draft = 0;
   let saving = false;
+  let adminEnabled = true; // server tells us whether an ADMIN_PIN is configured
+  let adminPin = null;     // kept in memory only, never stored on the phone
+
+  // The printed number. Falls back to the internal id until someone renames it.
+  const labelOf = (id) => (labels[id] && labels[id].label) || String(id);
 
   const store = {
     get(k, d) { try { return localStorage.getItem(k) ?? d; } catch { return d; } },
@@ -62,7 +68,7 @@
     b.style.left = t.x + "%";
     b.style.top = t.y + "%";
     b.dataset.id = t.id;
-    b.innerHTML = `<span class="no">${t.id}</span><span class="cnt">0</span>`;
+    b.innerHTML = `<span class="no"></span><span class="cnt">0</span>`;
     b.setAttribute("aria-label", `Table ${t.id}`);
     map.appendChild(b);
     btns[t.id] = b;
@@ -81,9 +87,11 @@
       else if (n >= CAP) full++;
       else partial++;
       const b = btns[t.id];
-      b.className = "tbl " + colorClass(n);
+      const label = labelOf(t.id);
+      b.className = "tbl " + colorClass(n) + (label.length > 3 ? " long" : "");
+      b.firstChild.textContent = label;
       b.lastChild.textContent = `${n}/${CAP}`;
-      b.setAttribute("aria-label", `Table ${t.id}: ${n} of ${CAP}`);
+      b.setAttribute("aria-label", `Table ${label}: ${n} of ${CAP}`);
       if (changed && changed.has(t.id)) {
         void b.offsetWidth;
         b.classList.add("flash");
@@ -110,6 +118,8 @@
       const res = await fetch("api/tables", { cache: "no-store", signal: ctrl.signal });
       if (!res.ok) throw new Error(res.status);
       const body = await res.json();
+      adminEnabled = body.adminEnabled !== false;
+      labels = body.labels || {};
       const next = body.tables || {};
       const changed = new Set();
       for (const t of TABLES) {
@@ -175,12 +185,30 @@
   function openSheet(id) {
     const rec = data[id];
     open = { id, expectT: rec ? rec.t : 0, initial: rec ? rec.n : 0 };
-    $("sheetTitle").textContent = `Table ${id}`;
+    $("sheetTitle").textContent = `Table ${labelOf(id)}`;
+    showLabelNote();
     $("conflict").hidden = true;
     showNow();
     setDraft(open.initial);
     $("sheetBackdrop").hidden = false;
     $("okBtn").disabled = false;
+  }
+
+  function showLabelNote() {
+    const rec = labels[open.id];
+    const note = $("labelNote");
+    if (!rec) {
+      note.hidden = true;
+      $("editNoBtn").textContent = "✏️ Edit no.";
+      return;
+    }
+    const dup = TABLES.filter((t) => labelOf(t.id) === rec.label).length;
+    note.innerHTML =
+      `Number set${rec.by ? " by " + rec.by : ""} ${fmtTime(rec.t)}` +
+      (dup > 1 ? ` · also used by ${dup - 1} other table${dup > 2 ? "s" : ""}` : "") +
+      (adminPin ? "" : " · 🔒 admin PIN needed to change");
+    note.hidden = false;
+    $("editNoBtn").textContent = adminPin ? "✏️ Edit no." : "🔒 Edit no.";
   }
 
   function closeSheet() {
@@ -304,6 +332,112 @@
     else if (open) askCancel();
   });
 
+  // ---------- admin mode ----------
+  function updateAdminChip() {
+    $("adminChip").hidden = !adminPin;
+  }
+
+  // Returns a verified PIN, or null if the user cancelled / got it wrong.
+  async function askPin(title, text) {
+    if (adminPin) return adminPin;
+    const pin = await confirmDialog(title, text, {
+      input: true, inputType: "password", placeholder: "Admin PIN", yes: "Unlock", no: "Cancel",
+    });
+    if (pin === null || !pin.trim()) return null;
+    const res = await fetch("api/tables", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "verify-pin", pin: pin.trim() }),
+    }).catch(() => null);
+    if (!res) {
+      toast("No connection — try again", true);
+      return null;
+    }
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      toast(body.error || "Wrong admin PIN", true);
+      return null;
+    }
+    adminPin = pin.trim();
+    updateAdminChip();
+    if (open) showLabelNote();
+    return adminPin;
+  }
+
+  $("adminChip").addEventListener("click", async () => {
+    const yes = await confirmDialog("Leave admin mode?", "Table numbers will be locked again.", {
+      yes: "Leave", no: "Stay",
+    });
+    if (!yes) return;
+    adminPin = null;
+    updateAdminChip();
+    if (open) showLabelNote();
+    toast("Admin mode off");
+  });
+
+  // ---------- table number ----------
+  async function sendLabel(id, label, pin) {
+    const res = await fetch("api/tables", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "set-label", id, label, by: usher, ...(pin ? { pin } : {}) }),
+    });
+    const body = await res.json().catch(() => ({}));
+    return { status: res.status, body };
+  }
+
+  $("editNoBtn").addEventListener("click", async () => {
+    if (!open) return;
+    const id = open.id;
+    const current = labelOf(id);
+    const already = Boolean(labels[id]);
+
+    // Already set once? The PIN comes first, so nobody types a number for nothing.
+    if (already && !adminPin) {
+      if (!adminEnabled) {
+        return toast("This number was already set and no admin PIN is set on this site", true);
+      }
+      const pin = await askPin(
+        "Admin PIN needed",
+        `Table number “${current}” was already set${labels[id].by ? " by " + labels[id].by : ""}. Enter the admin PIN to change it.`
+      );
+      if (!pin) return;
+    }
+
+    const value = await confirmDialog(
+      `Table number`,
+      already
+        ? `Change “${current}” to the number printed at the table. The same number may be used twice.`
+        : `Set the number printed at this table (now showing “${current}”). You can set it once; after that the admin PIN is needed.`,
+      { input: true, value: current, placeholder: "e.g. 12 or A3", yes: "Save", no: "Cancel" }
+    );
+    if (value === null) return;
+    const label = value.trim().slice(0, 6);
+    if (!label) return toast("Enter a table number", true);
+    if (label === current && already) return;
+
+    let r = await sendLabel(id, label, adminPin);
+    if (r.status === 423) {
+      // Someone set it while this sheet was open.
+      if (r.body.rec) labels[id] = r.body.rec;
+      const pin = await askPin("Admin PIN needed", `This table was just numbered “${r.body.rec ? r.body.rec.label : ""}” by someone else. Enter the admin PIN to change it.`);
+      if (!pin) { render(); showLabelNote(); $("sheetTitle").textContent = `Table ${labelOf(id)}`; return; }
+      r = await sendLabel(id, label, pin);
+    }
+    if (r.status === 403) {
+      adminPin = null;
+      updateAdminChip();
+      return toast("Admin PIN was rejected", true);
+    }
+    if (r.status !== 200) return toast(r.body.error || "Could not save the number", true);
+
+    labels[id] = r.body.rec;
+    render();
+    $("sheetTitle").textContent = `Table ${labelOf(id)}`;
+    showLabelNote();
+    toast(`Table number saved: ${label}`);
+  });
+
   // ---------- usher name ----------
   function showName() {
     $("nameLabel").textContent = usher || "Set your name";
@@ -316,15 +450,18 @@
     usher = v.trim().slice(0, 30);
     store.set("usherName", usher);
     showName();
+  updateAdminChip();
   });
 
   // ---------- find + zoom ----------
   const viewport = $("viewport");
   $("findForm").addEventListener("submit", (e) => {
     e.preventDefault();
-    const id = Number($("findInput").value.trim());
+    const q = $("findInput").value.trim();
+    const match = TABLES.find((t) => labelOf(t.id).toLowerCase() === q.toLowerCase());
+    const id = match ? match.id : Number(q);
     const b = btns[id];
-    if (!b) return toast(`No table ${$("findInput").value || ""}`.trim(), true);
+    if (!q || !b) return toast(`No table ${q}`.trim(), true);
     $("findInput").blur();
     b.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
     b.classList.remove("pulse");
@@ -353,10 +490,12 @@
 
   // ---------- admin reset ----------
   $("resetBtn").addEventListener("click", async () => {
-    const pin = await confirmDialog("Reset all tables?", "Sets every table back to 0. Enter the admin PIN.", {
-      input: true, inputType: "password", placeholder: "Admin PIN", yes: "Reset", no: "Cancel",
+    const sure = await confirmDialog("Reset all counts?", "Sets every table back to 0. Table numbers are kept.", {
+      yes: "Yes, reset", no: "Cancel",
     });
-    if (pin === null) return;
+    if (!sure) return;
+    const pin = await askPin("Admin PIN needed", "Enter the admin PIN to reset every count.");
+    if (!pin) return;
     const res = await fetch("api/tables", { method: "DELETE", headers: { "x-admin-pin": pin } });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) return toast(body.error || "Reset failed", true);

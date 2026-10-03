@@ -23,6 +23,7 @@
     </div>
     <div class="row tools">
       <button id="nameBtn" class="chip" type="button">👤 <span id="nameLabel">Set your name</span></button>
+      <button id="adminChip" class="chip admin" type="button" hidden>🔓 Admin · tap to exit</button>
       <form id="findForm" class="find" autocomplete="off">
         <input id="findInput" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="Table #" aria-label="Find table number">
         <button type="submit">Go</button>
@@ -61,8 +62,10 @@
     <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
       <header class="sheet-head">
         <h2 id="sheetTitle">Table</h2>
+        <button type="button" class="editno" id="editNoBtn">✏️ Edit no.</button>
         <span class="cap">max 12</span>
       </header>
+      <div class="warn lock" id="labelNote" hidden></div>
       <div class="now">
         <div class="now-count"><span>Now</span><b id="nowCount">0</b><span>persons</span></div>
         <div class="now-meta" id="nowMeta">Not updated yet</div>
